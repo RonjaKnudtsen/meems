@@ -1,0 +1,119 @@
+<?php
+/* 
+ * Bruker hook_menu
+ */
+function meems_menu() {
+    $items = array();
+
+    //Tillater moduler å registrere stier for å definere hvordan URL blir behandlet.
+    //Page callback blir kjørt ved sidebesøk
+    $items['meems/hello_world'] = array(
+        'title' => 'Hei, Verden',
+        'page callback' => 'say_hello_world',
+        'access callback' => 'user_access',
+        'access arguments' => array('See memes'),
+        'type' => MENU_CALLBACK,
+     );
+
+    //Lag meem side.
+    //Bruker drupal_get_form som page callback.
+    //Sender med form verdier i page arguments 
+    $items['meems/create'] = array(
+        'title' => 'Lag ny meme',
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('meems_create'),
+        'access callback' => 'user_access',
+        'access arguments' => array('Make memes'),
+        'type' => MENU_CALLBACK,
+    );
+
+    return $items;
+}
+
+/* En funksjon som blir sendt som page callback.
+ * Parametre sent med sidekallet legges i $name.
+ * Eksempelvis vil meems/hello_world/gisle vil sette $name = "gisle"
+ */
+function say_hello_world($name = "min venn") {
+    $vars = array();
+    $vars['type']="ul";
+    $vars['title'] = "";
+    $vars['attributes']=array("");
+    $vars['items'][0]="Hei, $name";
+
+    //Bruker Drupals theme_item_list og sender med ønskede variabler.
+    /* For å debugge, slå på devel modulen og bruk dpm:
+    dpm($vars, "Variabler:");
+    */
+
+    // return theme_table($header, $rows)
+    return theme_item_list($vars);
+}
+/* Bruker hook_permission
+ * This hook can supply permissions that the module defines, 
+ * so that they can be selected on the user permissions page
+ */
+function meems_permission(){
+    $permission = array();
+    $permission['See memes'] = array(
+        'title' => t('See memes under /meems'),
+        'description' => t('La besøkende se meems'),
+    );
+    $permission['Make memes'] = array(
+        'title' => t('Lag nye meems'),
+        'description' => t('Lag nye meems'),
+    );
+
+    return $permission;
+}
+
+function meems_create($form, &$form_state){
+    $form['name'] = array(
+        '#type' => 'textfield',
+        '#title' => t("Meme navn"),
+        '#required' => TRUE, 
+    );
+
+    $form['submit'] = array(
+        '#type' => 'submit',
+        '#value' => 'Send',
+    );
+    return $form;
+}
+
+// hook_validate
+// Legg merke til navnet hos funksjonen, den har samme navn som formet, men inkluderer _validate. 
+function meems_create_validate($form, &$form_state) {
+  /*For å debugge:
+  dpm($form_state, "Form state");*/
+
+  $name = $form_state['values']['name'];
+  if ($name != "Ida") {
+    //Escaper stringen for å unngå sql injection. 
+    form_set_error('name', t("Beklager, du heter ikke @name", array('@name' => $name)));
+  }
+
+}
+
+// hook_submit
+function meems_create_submit($form, &$form_state) {
+
+    drupal_set_message(t('Skjemaet har blitt sent inn'));
+
+    $node = new stdClass(); // Et nytt node objekt
+    $node->type = "meme"; // Innholdstypen som allerede er definert
+    $node->title = $form_state['values']['name']; //Hent ut navn fra skjemaet
+    $node->language = LANGUAGE_NONE; //Språk, standard er language_none
+
+    node_object_prepare($node); // Setter inn standard verdier. 
+    $node->uid = 1; // Brukeren, burde hente ut denne brukerens id. 
+
+    // Lag en standard body
+    $node->body[$node->language][0]['value'] = 'Dette er kroppen';
+    $node->body[$node->language][0]['summary'] = 'Dette er et sammendrag av kroppen';
+    $node->body[$node->language][0]['format'] = 'filtered_html'; // format for body. Må defineres. 
+
+    $node = node_submit($node); //Gjør klar noden for submit
+    node_save($node); // Lagre noden. 
+
+}
